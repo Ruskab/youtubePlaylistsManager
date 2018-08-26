@@ -34,6 +34,8 @@ $nextPageToken = '';
 $htmlBody = '';
 $videos_result[] = array();
 
+
+
 if (isset($_GET['code'])) {
   if (strval($_SESSION['state']) !== strval($_GET['state'])) {
     die('The session state did not match.');

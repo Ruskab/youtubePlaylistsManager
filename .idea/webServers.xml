@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="197fba18-e98c-4b53-88d5-35a367eb44bb" name="youTubeApiV2" url="http://localhost">
+        <fileTransfer port="0" mountedRoot="C:\xampp\htdocs\youtubeApiV2" accessType="MOUNT" />
+      </webServer>
+    </option>
+  </component>
+</project>

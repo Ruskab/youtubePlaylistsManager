@@ -1,149 +1,95 @@
-<?php  
+<?php
 include_once "vendor/autoload.php";
 include("mysql_ddbb/config.php");
 include("mysql_ddbb/bbdd_param.php");
-// Call set_include_path() as needed to point to your client library.
+include("youtube_params.php");
+include("apiAutentification.php");
+include("functions.php");
+include("youtube/youtubeManager.php");
+include("mysql_ddbb/databaseManager.php");
 
-session_start();
+
+//USO Y REFRESCO DE TOKENS MUY UTIL https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps
 
 /*
- * You can acquire an OAuth 2.0 client ID and client secret from the
- * Google Developers Console <https://console.developers.google.com/>
- * For more information about using OAuth 2.0 to access Google APIs, please see:
- * <https://developers.google.com/youtube/v3/guides/authentication>
- * Please ensure that you have enabled the YouTube Data API for your project.
+ * Hay 3 casos de video No disponibles
+ * 1 Video eliminado "Deleted video"
+ * 2 Video privado "privete video"
+ * 3 El video esta bloqueado en tu region, el titulo sigue estando pero pero sale como
+ * contentDetails->regionRestriction->bloqued
  */
-$OAUTH2_CLIENT_ID = '761462490192-m4slh9abud0e4a90gu1c2oeb7kr5m28m.apps.googleusercontent.com';
-$OAUTH2_CLIENT_SECRET = 'jOSlRkz9WM_2ek882DG3vlPb';
+//$youtubeManager->client->setAccessType('offline');
+//$youtubeManager->client->setApprovalPrompt('force');
 
-$STR_DELETED_VIDEO = "Deleted video";
+function parseRsGetVideosDic($response)
+{
+    $dictionary = [];
 
-$client = new Google_Client();
-$client->setClientId($OAUTH2_CLIENT_ID);
-$client->setClientSecret($OAUTH2_CLIENT_SECRET);
-$client->setScopes('https://www.googleapis.com/auth/youtube');
-$redirect = filter_var('http://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'],
-  FILTER_SANITIZE_URL);
-$client->setRedirectUri($redirect);
-
-// Define an object that will be used to make all API requests.
-$youtube = new Google_Service_YouTube($client);
-$nextPageToken = '';
-$htmlBody = '';
-$youtubeVideos_result[] = array();
-$ddbb_videos_result[] = array();
-
-if (isset($_GET['code'])) {
-  if (strval($_SESSION['state']) !== strval($_GET['state'])) {
-    die('The session state did not match.');
-  }
-
-  $client->authenticate($_GET['code']);
-  $_SESSION['token'] = $client->getAccessToken();
-  header('Location: ' . $redirect);
+    foreach ($response['items'] as $itemRS) {
+        $dictionary[$itemRS['snippet']['resourceId']['videoId']] = $itemRS['snippet']['title'];
+    }
+    return $dictionary;
 }
 
-if (isset($_SESSION['token'])) {
-  $client->setAccessToken($_SESSION['token']);
-}
-
-// Check to ensure that the access token was successfully acquired.
-if ($client->getAccessToken()) {
-  try {
-    // Call the channels.list method to retrieve information about the
-    // currently authenticated user's channel.
-    
-do {
-
-    $playlistItemsResponse = $youtube->playlistItems->listPlaylistItems('snippet', array(
-    'playlistId' => 'PLak68FO75_ICct3r1rPgeuS5AGop1fqFu',
-    'maxResults' => 50,
-    'pageToken' => $nextPageToken));
-
-    foreach ($playlistItemsResponse['items'] as $playlistItem) {
-
-            //Peticion para cada video individual
-            //$videoItemsResponse = $youtube->videos->listVideos('contentDetails', array(
-            //  'id' => $playlistItem['snippet']['resourceId']['videoId']                          
-            //));
-            //var_dump($videoItemsResponse["items"]["0"]["contentDetails"]["regionRestriction"]);
-            
-            //if ($playlistItem['snippet']['title'] == $STR_DELETED_VIDEO){
-            //var_dump("video DELETED");                          
-            //}
-
-         $youtubeVideos_result[$playlistItem['snippet']['resourceId']['videoId']] = $playlistItem['snippet']['title'];
-
-         //   $htmlBody .= sprintf('<li>%s#%s </li>', $playlistItem['snippet']['title'],$playlistItem['snippet']['resourceId']['videoId']);                
+function parseRsShowPlayLists($response)
+{
+    $buffer = "";
+    foreach ($response['items'] as $itemRS) {
+        $buffer .= sprintf('
+<li>
+    <a class=w3-btn  href=getDeletedVideos.php?Plist=%s ><b class="w3-wide">%s</b></a>
+    <a href="index.php?idPlaylist=%s" class="w3-button w3-green">Update</a>    
+</li>', $itemRS['id'], $itemRS['snippet']['localized']['title'], $itemRS['id']);
     }
 
-    $nextPageToken = $playlistItemsResponse['nextPageToken'];
-} while ($nextPageToken <> '');
-
-
-
-    $mysql_connection=conexion_mysqli($db_host,$db_user,$db_pass,$database);
-
-    $sql_querry = "SELECT * FROM videos WHERE 1";
-    $result_mysql = mysqli_query($mysql_connection, $sql_querry);
-
-if (mysqli_num_rows($result_mysql) > 0) {
-    // output data of each row
-    while($row = mysqli_fetch_assoc($result_mysql)) {                                          
-              $ddbb_videos_result[$row['id_video']] = $row['titulo'];       
-    }    
-    
-} else {
-    echo "0 results";
+    return $buffer;
 }
 
+function updatePlaylist($youtubeManager)
+{
+    global $db_host, $db_user, $db_pass, $database;
+    $youtubeVideos = array();
+    $nextPageToken = "";
 
-//Procesamos las 2 listas, reccorremos la de la ddbb y comparamos con la de youtube
-foreach ($ddbb_videos_result as $idVideo => $title){  
-  if (array_key_exists($idVideo, $youtubeVideos_result)){  
-    if ($youtubeVideos_result[$idVideo] == $STR_DELETED_VIDEO){
-       $htmlBody .= sprintf('<li>%s#%s </li>', $idVideo, $title);                
+    do {
+        $response = $youtubeManager->getPlaylistItemsAPI($nextPageToken);
+        $youtubeVideos += parseRsGetVideosDic($response);
+        $nextPageToken = $response['nextPageToken'];
+    } while ($nextPageToken <> '');
+
+    $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
+    $DBManager->renewPlaylistDDBB($_GET['idPlaylist'], $youtubeVideos);
+}
+
+session_start();
+$youtubeManager = new youtubeManager($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
+$youtubeManager->createUserSesionAndExpireTime();
+$youtubeManager->checkTokenExpire();
+
+// Si el usuario esta autorizado
+if ($youtubeManager->hasAccessToken()) {
+    try {
+        if (!empty($_GET['idPlaylist'])) {
+            updatePlaylist($youtubeManager);
+        }
+        //List User Playlists
+        $response = $youtubeManager->getPlaylistsAPI();
+        $htmlListItems = parseRsShowPlayLists($response);
+
+    } catch (Google_Service_Exception $e) {
+        $htmlBody .= sprintf('<p>A service error occurred: <code>%s</code></p>',
+            htmlspecialchars($e->getMessage()));
+    } catch (Google_Exception $e) {
+        $htmlBody .= sprintf('<p>An client error occurred: <code>%s</code></p>',
+            htmlspecialchars($e->getMessage()));
     }
-  }else{
-       $htmlBody .= sprintf("<li>Eliminado de la Playlist:\t[%s] \t\t %s </li>", $idVideo, $title);                
-  }
-}
 
+    $_SESSION['token'] = $youtubeManager->client->getAccessToken();
 
-
-  } catch (Google_Service_Exception $e) {
-    $htmlBody .= sprintf('<p>A service error occurred: <code>%s</code></p>',
-      htmlspecialchars($e->getMessage()));
-  } catch (Google_Exception $e) {
-    $htmlBody .= sprintf('<p>An client error occurred: <code>%s</code></p>',
-      htmlspecialchars($e->getMessage()));
-  }
-
-  $_SESSION['token'] = $client->getAccessToken();
 } else {
-  $state = mt_rand();
-  $client->setState($state);
-  $_SESSION['state'] = $state;
-
-  $authUrl = $client->createAuthUrl();
-  $htmlBody = <<<END
-  <h3>Authorization Required</h3>
-  <p>You need to <a href="$authUrl">authorize access</a> before proceeding.<p>
-END;
+    $htmlBody = showAuthorizationAlert($youtubeManager->client);
 }
+//Estructura de la pagina principal
+include("includes/bodyPage.php");
 ?>
-
-<!doctype html>
-<html>
-  <head>
-    <title>My Uploads</title>
-  </head>
-  <body>
-    <?=$htmlBody?>
-  </body>
-</html>
-
-
-
-
 
