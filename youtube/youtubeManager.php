@@ -1,12 +1,7 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: ilyak
- * Date: 25/08/2018
- * Time: 16:07
- */
+
 include_once "vendor/autoload.php";
-include("youtube_params.php");
+include("youtube/youtube_params.php");
 
 class youtubeManager
 {
@@ -24,6 +19,14 @@ class youtubeManager
             FILTER_SANITIZE_URL);
         $this->client->setRedirectUri($this->redirect);
         $this->youtube = new Google_Service_YouTube($this->client);
+    }
+
+    /**
+     * @return Google_Client
+     */
+    public function getAccessToken()
+    {
+        return $this->client->getAccessToken();
     }
 
     function checkTokenExpire()
@@ -70,10 +73,10 @@ class youtubeManager
             return false;
     }
 
-    function getPlaylistItemsAPI($nextPageToken)
+    function getPlaylistItemsAPI($nextPageToken, $idPlaylist)
     {
-        return $this->youtube->playlistItems->listPlaylistItems('snippet', array(
-            'playlistId' => $_GET['idPlaylist'],
+        return $this->youtube->playlistItems->listPlaylistItems('id,snippet,contentDetails,status', array(
+            'playlistId' => $idPlaylist,
             'maxResults' => 50,
             'pageToken' => $nextPageToken));
     }
@@ -96,6 +99,102 @@ class youtubeManager
     {
         return $this->youtube->videos->listVideos('snippet,contentDetails', array(
             'id' => $videoIds));
+    }
+
+    function setVideoInPlaylistAPI(video $video)
+    {
+        $resourceId = new Google_Service_YouTube_ResourceId();
+        $resourceId->setVideoId($video->getId());
+        $resourceId->setKind('youtube#video');
+
+        $playlistItemSnippet = new Google_Service_YouTube_PlaylistItemSnippet();
+        $playlistItemSnippet->setPlaylistId($video->getPlaylist());
+        $playlistItemSnippet->setResourceId($resourceId);
+
+        $playlistItem = new Google_Service_YouTube_PlaylistItem();
+        $playlistItem->setSnippet($playlistItemSnippet);
+
+        return $this->playlistItems->insert('snippet,contentDetails', $playlistItem, array());
+    }
+
+    function deleteVideoInPlaylistAPI($longVideoID)
+    {
+        return $this->playlistItems->delete($longVideoID, array());
+    }
+
+}
+
+Class video
+{
+    private $id;
+    private $title;
+    private $duration;
+    private $playlist;
+    private $idVideo_Playlist;
+
+    public function __construct($id)
+    {
+        $this->id = $id;
+    }
+
+    public function getId()
+    {
+        return $this->id;
+    }
+
+    public function setId($id): void
+    {
+        $this->id = $id;
+    }
+
+    public function getTitle()
+    {
+        return $this->title;
+    }
+
+    public function setTitle($title): void
+    {
+        $this->title = $title;
+    }
+
+    public function getDuration()
+    {
+        return $this->duration;
+    }
+
+    public function setDuration($duration): void
+    {
+        $this->duration = $duration;
+    }
+
+    public function getPlaylist()
+    {
+        return $this->playlist;
+    }
+
+    public function setPlaylist($playlist): void
+    {
+        $this->playlist = $playlist;
+    }
+
+    public function getIdVideoPlaylist()
+    {
+        return $this->idVideo_Playlist;
+    }
+
+    public function setIdVideoPlaylist($idVideo_Playlist): void
+    {
+        $this->idVideo_Playlist = $idVideo_Playlist;
+    }
+
+    public function addVideoInfoFromGET()
+    {
+        if (!empty($_GET)) {
+            if (!empty($_GET['title'])) $this->setTitle($_GET['title']);
+            if (!empty($_GET['idPlist'])) $this->setPlaylist($_GET['idPlist']);
+            if (!empty($_GET['idVideoPlist'])) $this->setIdVideoPlaylist($_GET['idVideoPlist']);
+            if (!empty($_GET['duration'])) $this->setDuration($_GET['duration']);
+        }
     }
 
 }

@@ -1,35 +1,28 @@
-<?php 
-include("mysql_ddbb/bbdd_param.php");
+<?php
 
-function makeQueryDDBB($query){
-    global $db_host, $db_user, $db_pass, $database;
-    $conection = conexion_mysqli($db_host, $db_user, $db_pass, $database);
+include("includes/constants.php");
 
-    if (mysqli_query($conection, $query)) {
-        return "success";
-    } else {
-        return mysqli_error($conection);
-    }
-    mysqli_close($conection);
-
-}
-
-
-function getDataFromDatabase($query)
+function addPanelWithMessage($msg)
 {
-    global $db_host, $db_user, $db_pass, $database;
-    $conection = conexion_mysqli($db_host, $db_user, $db_pass, $database);
-    $results = mysqli_query($conection, $query);
-
-    if (mysqli_num_rows($results) == 0)
-        array_push($registro, "No hay datos");
-    else { //si hay, meterlos en un array
-
-        for($i = 0; $registro[$i] = mysqli_fetch_assoc($results); $i++) ;
-        array_pop($registro);
-    }
-    mysqli_close($conection);
-    return $registro;
+    return sprintf(
+        "<div class=\"w3-panel w3-pale-blue w3-leftbar w3-rightbar w3-border-blue\">
+                    <h3>%s</h3>
+                </div>"
+        , $msg);
+}
+function generateAuthUrlSetState(&$client)
+{
+    $state = mt_rand();
+    $client->setState($state);
+    $_SESSION['state'] = $state;
+    return $client->createAuthUrl();
+}
+function addAuthorizationPanelAlert($authUrl)
+{
+    return sprintf("<div class=\"w3-panel w3-pale-blue w3-leftbar w3-rightbar w3-border-blue\">
+            <h3>Authorization Required</h3>
+            <p>You need to <a href=\"%s\">authorize access</a> before proceeding.<p>
+            </div>", $authUrl);
 }
 
 ?>

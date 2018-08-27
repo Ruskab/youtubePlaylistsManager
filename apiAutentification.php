@@ -26,6 +26,8 @@ function initGoogleClientAndYoutubeService(& $client, & $redirect, &$youtube){
     $youtube = new Google_Service_YouTube($client);
 }
 
+
+
 function showAuthorizationAlert(&$client)
 {
     $state = mt_rand();
@@ -36,7 +38,6 @@ function showAuthorizationAlert(&$client)
             <h3>Authorization Required</h3>
             <p>You need to <a href=\"%s\">authorize access</a> before proceeding.<p>
             </div>", $authUrl);
-
     return $htmlBody;
 }
 

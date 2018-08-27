@@ -1,9 +1,5 @@
 <?php
 include_once "vendor/autoload.php";
-include("mysql_ddbb/config.php");
-include("mysql_ddbb/bbdd_param.php");
-include("youtube_params.php");
-include("apiAutentification.php");
 include("functions.php");
 include("youtube/youtubeManager.php");
 include("mysql_ddbb/databaseManager.php");
@@ -37,7 +33,7 @@ function parseRsShowPlayLists($response)
     foreach ($response['items'] as $itemRS) {
         $buffer .= sprintf('
 <li>
-    <a class=w3-btn  href=getDeletedVideos.php?Plist=%s ><b class="w3-wide">%s</b></a>
+    <a class=w3-btn  href=getDeletedVideos.php?idPlist=%s ><b class="w3-wide">%s</b></a>
     <a href="index.php?idPlaylist=%s" class="w3-button w3-green">Update</a>    
 </li>', $itemRS['id'], $itemRS['snippet']['localized']['title'], $itemRS['id']);
     }
@@ -52,13 +48,13 @@ function updatePlaylist($youtubeManager)
     $nextPageToken = "";
 
     do {
-        $response = $youtubeManager->getPlaylistItemsAPI($nextPageToken);
+        $response = $youtubeManager->getPlaylistItemsAPI($nextPageToken, $_GET['idPlaylist']);
         $youtubeVideos += parseRsGetVideosDic($response);
         $nextPageToken = $response['nextPageToken'];
     } while ($nextPageToken <> '');
 
     $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
-    $DBManager->renewPlaylistDDBB($_GET['idPlaylist'], $youtubeVideos);
+        $DBManager->renewPlaylistDDBB($_GET['idPlaylist'], $youtubeVideos);
 }
 
 session_start();
@@ -77,17 +73,16 @@ if ($youtubeManager->hasAccessToken()) {
         $htmlListItems = parseRsShowPlayLists($response);
 
     } catch (Google_Service_Exception $e) {
-        $htmlBody .= sprintf('<p>A service error occurred: <code>%s</code></p>',
-            htmlspecialchars($e->getMessage()));
+        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     } catch (Google_Exception $e) {
-        $htmlBody .= sprintf('<p>An client error occurred: <code>%s</code></p>',
-            htmlspecialchars($e->getMessage()));
+        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     }
 
-    $_SESSION['token'] = $youtubeManager->client->getAccessToken();
+    $_SESSION['token'] = $youtubeManager->getAccessToken();
 
 } else {
-    $htmlBody = showAuthorizationAlert($youtubeManager->client);
+    $urlAuth = generateAuthUrlSetState($youtubeManager->client);
+    $htmlBody = addAuthorizationPanelAlert($urlAuth);
 }
 //Estructura de la pagina principal
 include("includes/bodyPage.php");

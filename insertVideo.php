@@ -7,69 +7,49 @@ include("apiAutentification.php");
 include("functions.php");
 
 
-function buildRqInsertVidedPlayList($videoId, $playListId, &$playlistItem)
+function addNewVideoInDatabase(video $newVideo, video $oldVideo)
 {
-    $resourceId = new Google_Service_YouTube_ResourceId();
-    $resourceId->setVideoId($videoId);
-    $resourceId->setKind('youtube#video');
-
-    $playlistItemSnippet = new Google_Service_YouTube_PlaylistItemSnippet();
-    $playlistItemSnippet->setPlaylistId($playListId);
-    $playlistItemSnippet->setResourceId($resourceId);
-
-    $playlistItem = new Google_Service_YouTube_PlaylistItem();
-    $playlistItem->setSnippet($playlistItemSnippet);
+    global $db_host, $db_user, $db_pass, $database;
+    $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
+    return $DBManager->renewVideoInDDBB($newVideo->getId(), $oldVideo->getId(), $newVideo->getPlaylist(), $newVideo->getTitle());
 }
 
 session_start();
-//Inicializamos el Cliente y YouTube API Service
-initGoogleClientAndYoutubeService($client, $redirect, $youtube);
-//Si estamos en la ventana de Autorizacion
-createUserSesionAndExpireTime($client, $redirect);
-//Check if token expired
-checkTokenExpire($client);
+$youtubeManager = new youtubeManager($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
+$youtubeManager->createUserSesionAndExpireTime();
+$youtubeManager->checkTokenExpire();
 
 // Check to ensure that the access token was successfully acquired.
-if ($client->getAccessToken()) {
+if ($youtubeManager->hasAccessToken()) {
     try {
         if (!empty($_GET['vdId']) && !empty($_GET['plId']) && !empty($_GET['LongIdVideo'])) {
+            //youtube API
+            $newVideo = new video($_GET['vdId']);
+            $newVideo->addVideoInfoFromGET();
+            $oldVideo = new video($_GET['oldId']);
+            $playlistItemResponse = $youtubeManager->setVideoInPlaylistAPI($newVideo);
+            $DeleteVideoResponse = $youtubeManager->deleteVideoInPlaylistAPI($newVideo->getIdVideoPlaylist());
 
-            //Crear la Request
-            buildRqInsertVidedPlayList($_GET['vdId'], $_GET['plId'], $playlistItem);
-            //Realizar la peticiones a YouTube
-            $playlistItemResponse = $youtube->playlistItems->insert('snippet,contentDetails', $playlistItem, array());
-            $DeleteVideoResponse = $youtube->playlistItems->delete($_GET['LongIdVideo'], array());
-
-            //conexion a la bbdd
-            $query = sprintf("DELETE FROM videos WHERE id_video = '%s'", $_GET['oldId']);
-            $stateQuery = makeQueryDDBB($query);
-
-            $conection = conexion_mysqli($db_host, $db_user, $db_pass, $database);
-            $query = sprintf("INSERT INTO videos (id_video, titulo, idPlaylist) VALUES ('%s','%s','%s');",
-                $_GET['vdId'], mysqli_real_escape_string($conection,
-                    $playlistItemResponse['snippet']['title']), $_GET['plId']);
-
-            $stateQuery = makeQueryDDBB($query);
+            //DDBB
+            $stateQuery = addNewVideoInDatabase($newVideo, $oldVideo);
 
             if ($stateQuery == "success") {
                 header("Location:index.php");
             } else {
-                $htmlBody = sprintf("
-                    <div class=\"w3-panel w3-pale-blue w3-leftbar w3-rightbar w3-border-blue\">
-                    <h3>%s</h3></div>", $stateQuery);
+                $htmlBody = addPanelWithMessage($stateQuery);
             }
         }
 
     } catch (Google_Service_Exception $e) {
-        $htmlBody .= sprintf('<p>A service error occurred: <code>%s</code></p>',
-            htmlspecialchars($e->getMessage()));
+        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     } catch (Google_Exception $e) {
-        $htmlBody .= sprintf('<p>An client error occurred: <code>%s</code></p>',
-            htmlspecialchars($e->getMessage()));
+        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     }
-    $_SESSION['token'] = $client->getAccessToken();
+
+    $_SESSION['token'] = $youtubeManager->getAccessToken();
 } else {
-    $htmlBody = showAuthorizationAlert($client);
+    $urlAuth = generateAuthUrlSetState($youtubeManager->client);
+    $htmlBody = addAuthorizationPanelAlert($urlAuth);
 }
 
 //Estructura de la pagina principal

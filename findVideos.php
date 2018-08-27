@@ -1,10 +1,6 @@
 <?php
 include_once "vendor/autoload.php";
-include("mysql_ddbb/config.php");
-include("mysql_ddbb/bbdd_param.php");
 include("functions.php");
-include("youtube_params.php");
-include("apiAutentification.php");
 include("youtube/youtubeManager.php");
 
 
@@ -60,7 +56,6 @@ if ($youtubeManager->hasAccessToken()) {
         if (!empty($_GET['vdTitle']) && !empty($_GET['playlistId'])) {
             $response = $youtubeManager->getVideosByTitleAPI($_GET['vdTitle']);
             $idVideos = parseRsGetAlterVideosIds($response);
-
             if (!empty($idVideos)) {
                 $videoDetallRS = $youtubeManager->getVideosByIdAPI($idVideos);
                 $htmlListItems = parseRShowVideos($videoDetallRS);
@@ -68,16 +63,15 @@ if ($youtubeManager->hasAccessToken()) {
         }
 
     } catch (Google_Service_Exception $e) {
-        $htmlBody .= sprintf('<p>A service error occurred: <code>%s</code></p>',
-            htmlspecialchars($e->getMessage()));
+        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     } catch (Google_Exception $e) {
-        $htmlBody .= sprintf('<p>An client error occurred: <code>%s</code></p>',
-            htmlspecialchars($e->getMessage()));
+        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     }
 
-    $_SESSION['token'] = $youtubeManager->client->getAccessToken();
+    $_SESSION['token'] = $youtubeManager->getAccessToken();
 } else {
-    $htmlBody = showAuthorizationAlert($youtubeManager->client);
+    $urlAuth = generateAuthUrlSetState($youtubeManager->client);
+    $htmlBody = addAuthorizationPanelAlert($urlAuth);
 }
 
 //Estructura de la pagina principal
