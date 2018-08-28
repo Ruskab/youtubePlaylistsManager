@@ -1,6 +1,7 @@
 <?php
 
 include("includes/constants.php");
+include("youtube/youtubeManager.php");
 
 function addPanelWithMessage($msg)
 {
@@ -10,6 +11,7 @@ function addPanelWithMessage($msg)
                 </div>"
         , $msg);
 }
+
 function generateAuthUrlSetState(&$client)
 {
     $state = mt_rand();
@@ -17,12 +19,21 @@ function generateAuthUrlSetState(&$client)
     $_SESSION['state'] = $state;
     return $client->createAuthUrl();
 }
+
 function addAuthorizationPanelAlert($authUrl)
 {
     return sprintf("<div class=\"w3-panel w3-pale-blue w3-leftbar w3-rightbar w3-border-blue\">
             <h3>Authorization Required</h3>
             <p>You need to <a href=\"%s\">authorize access</a> before proceeding.<p>
             </div>", $authUrl);
+}
+//Abs 2
+function initYoutubeService($clientId, $clientSecret)
+{
+    $youtubeManager = new youtubeManager($clientId, $clientSecret);
+    $youtubeManager->createUserSesionAndExpireTime();
+    $youtubeManager->checkTokenExpire();
+    return $youtubeManager;
 }
 
 ?>

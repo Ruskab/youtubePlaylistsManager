@@ -1,7 +1,7 @@
 <?php
 
 include_once "vendor/autoload.php";
-include("youtube/youtube_params.php");
+include("includes/constants.php");
 
 class youtubeManager
 {
@@ -101,100 +101,25 @@ class youtubeManager
             'id' => $videoIds));
     }
 
+
     function setVideoInPlaylistAPI(video $video)
     {
         $resourceId = new Google_Service_YouTube_ResourceId();
         $resourceId->setVideoId($video->getId());
         $resourceId->setKind('youtube#video');
 
+
         $playlistItemSnippet = new Google_Service_YouTube_PlaylistItemSnippet();
         $playlistItemSnippet->setPlaylistId($video->getPlaylist());
         $playlistItemSnippet->setResourceId($resourceId);
-
         $playlistItem = new Google_Service_YouTube_PlaylistItem();
         $playlistItem->setSnippet($playlistItemSnippet);
 
-        return $this->playlistItems->insert('snippet,contentDetails', $playlistItem, array());
+        return $this->youtube->playlistItems->insert('snippet,contentDetails', $playlistItem, array());
     }
 
     function deleteVideoInPlaylistAPI($longVideoID)
     {
-        return $this->playlistItems->delete($longVideoID, array());
+        return $this->youtube->playlistItems->delete($longVideoID, array());
     }
-
-}
-
-Class video
-{
-    private $id;
-    private $title;
-    private $duration;
-    private $playlist;
-    private $idVideo_Playlist;
-
-    public function __construct($id)
-    {
-        $this->id = $id;
-    }
-
-    public function getId()
-    {
-        return $this->id;
-    }
-
-    public function setId($id): void
-    {
-        $this->id = $id;
-    }
-
-    public function getTitle()
-    {
-        return $this->title;
-    }
-
-    public function setTitle($title): void
-    {
-        $this->title = $title;
-    }
-
-    public function getDuration()
-    {
-        return $this->duration;
-    }
-
-    public function setDuration($duration): void
-    {
-        $this->duration = $duration;
-    }
-
-    public function getPlaylist()
-    {
-        return $this->playlist;
-    }
-
-    public function setPlaylist($playlist): void
-    {
-        $this->playlist = $playlist;
-    }
-
-    public function getIdVideoPlaylist()
-    {
-        return $this->idVideo_Playlist;
-    }
-
-    public function setIdVideoPlaylist($idVideo_Playlist): void
-    {
-        $this->idVideo_Playlist = $idVideo_Playlist;
-    }
-
-    public function addVideoInfoFromGET()
-    {
-        if (!empty($_GET)) {
-            if (!empty($_GET['title'])) $this->setTitle($_GET['title']);
-            if (!empty($_GET['idPlist'])) $this->setPlaylist($_GET['idPlist']);
-            if (!empty($_GET['idVideoPlist'])) $this->setIdVideoPlaylist($_GET['idVideoPlist']);
-            if (!empty($_GET['duration'])) $this->setDuration($_GET['duration']);
-        }
-    }
-
 }

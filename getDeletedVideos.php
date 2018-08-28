@@ -1,10 +1,82 @@
 <?php
 include_once "vendor/autoload.php";
-
-include("youtube/youtubeManager.php");
+include("functions.php");
 include("mysql_ddbb/databaseManager.php");
 
-function parseResponseShowBlockedVideos($listResponse, $idsVideosPlaylists)
+$tubeVideoRS[] = array();
+$ddbbVideoRS[] = array();
+$idsVideosPlaylists[] = array();
+$MSG_PRIVATE_VIDEO = "Private video";
+$MSG_DELETED_VIDEO = "Deleted video";
+
+session_start();
+$youtubeManager = initYoutubeService($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
+
+if ($youtubeManager->hasAccessToken()) {
+    try {
+        if (!empty($_GET['idPlist'])) {
+            do {
+                $response = $youtubeManager->getPlaylistItemsAPI($nextPageToken, $_GET['idPlist']);
+                $idsVideosPlaylists += getListLongVideoIds($response);
+                $htmlListItems .= getVideoDetailsAndFilterBlockedVideos($youtubeManager, $response);
+                $tubeVideoRS += parseRsGetAllVideosDic($response);
+
+                $nextPageToken = $response['nextPageToken'];
+            } while ($nextPageToken <> '');
+
+            $ddbbVideoRS = getVideosByPlaylistIdFromDB($_GET['idPlist']);
+            $htmlListItems .= analyzeAndAddDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlaylists);
+
+            if (empty($htmlListItems)){
+                $htmlListItems = addPanelWithMessage("No hay videos");
+            }
+        }
+
+    } catch (Google_Service_Exception $e) {
+        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
+    } catch (Google_Exception $e) {
+        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
+    }
+
+    $_SESSION['token'] = $youtubeManager->getAccessToken();
+} else {
+    $urlAuth = generateAuthUrlSetState($youtubeManager->client);
+    $htmlBody = addAuthorizationPanelAlert($urlAuth);
+}
+//Estructura de la pagina principal
+include("includes/bodyPage.php");
+
+//Abs 2
+function getVideoDetailsAndFilterBlockedVideos($youtubeManager, $response)
+{
+//diccionario de videos id -> title
+    $idsVideosPlaylists = array();
+    $hmtlElements = "";
+    $totalVideos = count($response['items']);
+    $videosAnalized = 0;
+    $numIdInRequest = 0;
+    $requestIDs = "";
+
+    foreach ($response['items'] as $itemRS) {
+        $idsVideosPlaylists[$itemRS['snippet']['resourceId']['videoId']] = $itemRS['id'];
+        //Get the bloqued videos
+        if ($numIdInRequest <= 49) {
+            $requestIDs .= $itemRS['snippet']['resourceId']['videoId'] . ",";
+            if ($numIdInRequest == 49 || $totalVideos === ++$videosAnalized) {
+                $requestIDs = rtrim($requestIDs, ", ");
+                $response = $youtubeManager->getVideosByIdAPI($requestIDs);
+
+                $numIdInRequest = 0;
+                $hmtlElements .= parseRsAddBlockedVideos($response, $idsVideosPlaylists);
+            }
+        }
+        $numIdInRequest++;
+    }
+    return $hmtlElements;
+}
+
+//Abs 3
+function parseRsAddBlockedVideos($listResponse, $idsVideosPlaylists)
 {
     $htmlListItems = "";
 
@@ -25,34 +97,7 @@ function parseResponseShowBlockedVideos($listResponse, $idsVideosPlaylists)
     return $htmlListItems;
 }
 
-function showBlockedVideos($youtubeManager, $response)
-{
-//diccionario de videos id -> title
-    $idsVideosPlaylists = array();
-    $hmtlElements = "";
-    $totalVideos = count($response['items']);
-    $videosAnalized = 0;
-    $numIdInRequest = 0;
-    $requestIDs = "";
-
-    foreach ($response['items'] as $itemRS) {
-        $idsVideosPlaylists[$itemRS['snippet']['resourceId']['videoId']] = $itemRS['id'];
-        //Get the bloqued videos
-        if ($numIdInRequest <= 49) {
-            $requestIDs .= $itemRS['snippet']['resourceId']['videoId'] . ",";
-            if ($numIdInRequest == 49 || $totalVideos === ++$videosAnalized) {
-                $requestIDs = rtrim($requestIDs, ", ");
-                $response = $youtubeManager->getVideosByIdAPI($requestIDs);
-
-                $numIdInRequest = 0;
-                $hmtlElements .= parseResponseShowBlockedVideos($response, $idsVideosPlaylists);
-            }
-        }
-        $numIdInRequest++;
-    }
-    return $hmtlElements;
-}
-
+//Abs 2
 function getListLongVideoIds($response)
 {
     foreach ($response['items'] as $itemRS) {
@@ -62,7 +107,8 @@ function getListLongVideoIds($response)
 
 }
 
-function parseRsGetVideosDic($response)
+//Abs 2
+function parseRsGetAllVideosDic($response)
 {
     $dictionary = [];
 
@@ -72,9 +118,17 @@ function parseRsGetVideosDic($response)
     return $dictionary;
 }
 
+//Abs 2
+function getVideosByPlaylistIdFromDB($playlistId)
+{
+    global $db_host, $db_user, $db_pass, $database;
+    $query = "SELECT * FROM videos WHERE idPlaylist = '" . $playlistId . "'";
+    $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
+    return $DBManager->select_data($query);
+}
 
-
-function analyzeAndShowDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlaylists)
+//Abs 2
+function analyzeAndAddDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlaylists)
 {
     global $STR_DELETED_VIDEO, $STR_PRIVATE_VIDEO;
     $htmlListItems = "";
@@ -89,7 +143,9 @@ function analyzeAndShowDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlayl
                            <span class="w3-tag w3-red"> Deleted</span> %s
                         </a>
                     </li> ',
-                    urlencode($dbVideo['titulo']), $_GET['idPlist'], $dbVideo['id_video'], $idsVideosPlaylists[$dbVideo['id_video']], $dbVideo['titulo']);
+                    urlencode($dbVideo['titulo']), $_GET['idPlist'], $dbVideo['id_video'],
+                    $idsVideosPlaylists[$dbVideo['id_video']], $dbVideo['titulo']);
+
             } elseif ($tubeVideoRS[$dbVideo['id_video']] == $STR_PRIVATE_VIDEO) {
                 $htmlListItems .= sprintf('
                     <li class=w3>
@@ -97,7 +153,8 @@ function analyzeAndShowDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlayl
                            <span class="w3-tag w3-red"> Private</span> %s
                         </a>
                     </li> ',
-                    urlencode($dbVideo['titulo']), $_GET['idPlist'], $dbVideo['id_video'], $idsVideosPlaylists[$dbVideo['id_video']], $dbVideo['titulo']);
+                    urlencode($dbVideo['titulo']), $_GET['idPlist'], $dbVideo['id_video'],
+                    $idsVideosPlaylists[$dbVideo['id_video']], $dbVideo['titulo']);
             }
         } else {
             //Si el usuario elimina el video de la playlist
@@ -107,62 +164,15 @@ function analyzeAndShowDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlayl
                     <span class="w3-tag w3-green">Quitado</span> %s
                 </a> 
             </li> ',
-                urlencode($dbVideo['titulo']), $_GET['idPlist'], $dbVideo['id_video'], $idsVideosPlaylists[$dbVideo['id_video']], $dbVideo['titulo']);
+                urlencode($dbVideo['titulo']), $_GET['idPlist'], $dbVideo['id_video'],
+                $idsVideosPlaylists[$dbVideo['id_video']], $dbVideo['titulo']);
         }
     }
+
     return $htmlListItems;
 }
 
-function getVideosByPlaylistIdFromDB($playlistId)
-{
-    global $db_host, $db_user, $db_pass, $database;
-    $query = "SELECT * FROM videos WHERE idPlaylist = '" . $_GET['idPlist'] . "'";
-    $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
-    return $DBManager->select_data($query);
-}
 
-
-$tubeVideoRS[] = array();
-$ddbbVideoRS[] = array();
-$idsVideosPlaylists[] = array();
-$MSG_PRIVATE_VIDEO = "Private video";
-$MSG_DELETED_VIDEO = "Deleted video";
-
-
-session_start();
-$youtubeManager = new youtubeManager($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
-$youtubeManager->createUserSesionAndExpireTime();
-$youtubeManager->checkTokenExpire();
-
-if ($youtubeManager->hasAccessToken()) {
-    try {
-        if (!empty($_GET['idPlist'])) {
-            do {
-                $response = $youtubeManager->getPlaylistItemsAPI($nextPageToken, $_GET['idPlist']);
-                $idsVideosPlaylists += getListLongVideoIds($response);
-                $htmlListItems .= showBlockedVideos($youtubeManager, $response);
-                $tubeVideoRS += parseRsGetVideosDic($response);
-
-                $nextPageToken = $response['nextPageToken'];
-            } while ($nextPageToken <> '');
-
-            $ddbbVideoRS = getVideosByPlaylistIdFromDB($_GET['idPlist']);
-            $htmlListItems .= analyzeAndShowDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlaylists);
-        }
-
-    } catch (Google_Service_Exception $e) {
-        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
-    } catch (Google_Exception $e) {
-        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
-    }
-
-    $_SESSION['token'] = $youtubeManager->getAccessToken();
-} else {
-    $urlAuth = generateAuthUrlSetState($youtubeManager->client);
-    $htmlBody = addAuthorizationPanelAlert($urlAuth);
-}
-//Estructura de la pagina principal
-include("includes/bodyPage.php");
 ?>
 
 

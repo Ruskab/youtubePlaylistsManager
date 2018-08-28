@@ -46,17 +46,18 @@ class databaseManager
         $this->close_connection();
     }
 
-    function renewVideoInDDBB($newIdVideo, $oldIdvideo, $playlistId, $newVideoTitle){
-        $this->create_connection();
-        $query = sprintf("DELETE FROM videos WHERE id_video = '%s'", $oldIdvideo);
-        $this->delete_data($query);
-
+    //Abs 3
+    function renewVideoInDDBB(video $newVideo, video $oldVideo)
+    {
+        $msg_state = "";
+        create_connection();
+        $query = sprintf("DELETE FROM videos WHERE id_video = '%s'", $oldVideo->getId());
+        delete_data($query);
         $query = sprintf("INSERT INTO videos (id_video, titulo, idPlaylist) VALUES ('%s','%s','%s');",
-            $newIdVideo, $this->connection->real_escape_string($newVideoTitle), $playlistId);
-
-    return $this->insert_data($query);
-
+            $newVideo->getId(), $this->connection->real_escape_string($newVideo->getTitle()), $newVideo->getPlaylist());
+        $msg_state = insert_data($query);
         $this->close_connection();
+        return $msg_state;
     }
 
     private function create_connection()
@@ -65,9 +66,9 @@ class databaseManager
         $this->connection = new mysqli($this->servername, $this->username, $this->password, $this->database);
         // Check connection
         if ($this->connection->connect_error) {
-            die("Connection failed: " . $this->connection->connect_error);
+            return $this->connection->connect_error;
         }
-        echo "Connected successfully";
+        return "Connected successfully";
     }
 
     private function close_connection()
@@ -78,18 +79,18 @@ class databaseManager
     function insert_data($query)
     {
         if ($this->connection->query($query) === TRUE) {
-            echo "New record created successfully";
+            return "New record created successfully";
         } else {
-            echo "Error: " . $query . "<br>" . $this->connection->error;
+            return $this->connection->error;
         }
     }
 
     function delete_data($query)
     {
         if ($this->connection->query($query) === TRUE) {
-            echo "Record deleted successfully";
+            return "Record deleted successfully";
         } else {
-            echo "Error deleting record: " . $this->connection->error;
+            return $this->connection->error;
         }
     }
 
@@ -110,7 +111,6 @@ class databaseManager
         return $registro;
 
     }
-
 
 
 }
