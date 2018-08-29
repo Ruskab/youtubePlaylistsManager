@@ -7,14 +7,12 @@ include("mysql_ddbb/databaseManager.php");
 
 //$youtubeManager->client->setAccessType('offline');
 //$youtubeManager->client->setApprovalPrompt('force');
-
-
 session_start();
-$youtubeManager = initYoutubeService($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
+try {
+    $youtubeManager = initYoutubeService($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
 
 // Si el usuario esta autorizado
-if ($youtubeManager->hasAccessToken()) {
-    try {
+    if ($youtubeManager->hasAccessToken()) {
         if (!empty($_GET['idPlaylist'])) {
             updatePlaylist($youtubeManager);
         }
@@ -22,25 +20,23 @@ if ($youtubeManager->hasAccessToken()) {
         $response = $youtubeManager->getPlaylistsAPI();
         $htmlListItems = parseRsShowPlayLists($response);
 
-    } catch (Google_Service_Exception $e) {
-        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
-    } catch (Google_Exception $e) {
-        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
+
+        $_SESSION['token'] = $youtubeManager->getAccessToken();
+
+    } else {
+        $urlAuth = generateAuthUrlSetState($youtubeManager->client);
+        $htmlBody = addAuthorizationPanelAlert($urlAuth);
     }
 
-    $_SESSION['token'] = $youtubeManager->getAccessToken();
-
-} else {
-    $urlAuth = generateAuthUrlSetState($youtubeManager->client);
-    $htmlBody = addAuthorizationPanelAlert($urlAuth);
+} catch (Exception $e) {
+    addPanelWithErrorMessage($e->getMessage());
+} catch (Google_Service_Exception $e) {
+    $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
+} catch (Google_Exception $e) {
+    $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
 }
 //Estructura de la pagina principal
 include("includes/bodyPage.php");
-
-?>
-
-
-<?php
 
 
 //Abs2
@@ -78,7 +74,7 @@ function parseRsShowPlayLists($response)
     $okIcon = "";
     foreach ($response['items'] as $itemRS) {
         $okIcon = "";
-        if (!empty($_GET['idPlaylist']) &&  $itemRS['id'] == $_GET['idPlaylist']) {
+        if (!empty($_GET['idPlaylist']) && $itemRS['id'] == $_GET['idPlaylist']) {
             $okIcon = "<span class=\"glyphicon glyphicon-ok\"></span>";
         }
 

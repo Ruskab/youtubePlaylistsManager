@@ -21,6 +21,8 @@ if ($youtubeManager->hasAccessToken()) {
         $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     } catch (Google_Exception $e) {
         $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
+    } catch (Exception $e){
+        $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     }
 
     $_SESSION['token'] = $youtubeManager->getAccessToken();

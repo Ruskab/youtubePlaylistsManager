@@ -4,8 +4,8 @@ include("functions.php");
 include("youtube/video.php");
 include("mysql_ddbb/databaseManager.php");
 
-$htmlBody="";
-$htmlListItems  = "";
+$htmlBody = "";
+$htmlListItems = "";
 
 session_start();
 
@@ -18,7 +18,7 @@ if (!empty($_GET['vdId']) && !empty($_GET['idPlist']) && !empty($_GET['LongIdVid
             $newVideo->addVideoInfoFromGET(); //2
 
             $oldVideo = new video($_GET['oldId']);
-            $oldVideo ->setIdVideoPlaylist($_GET['LongIdVideo']);
+            $oldVideo->setIdVideoPlaylist($_GET['LongIdVideo']);
 
             $newVideo->setTitle(addNewVideoInPlaylistGetTitle($newVideo, $oldVideo, $youtubeManager));  //2
             $status_query = addNewVideoInDatabase($newVideo, $oldVideo); //2
@@ -27,6 +27,8 @@ if (!empty($_GET['vdId']) && !empty($_GET['idPlist']) && !empty($_GET['LongIdVid
         } catch (Google_Service_Exception $e) {
             $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
         } catch (Google_Exception $e) {
+            $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
+        } catch (Exception $e) {
             $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
         }
 
@@ -46,24 +48,24 @@ function addNewVideoInPlaylistGetTitle(video $video, video $oldvideo, youtubeMan
     $DeleteVideoResponse = $youtubeManager->deleteVideoInPlaylistAPI($oldvideo->getIdVideoPlaylist());
     return $playlistItemResponse['snippet']['title'];
 }
+
 //Abs 2
 function addNewVideoInDatabase(video $newVideo, video $oldVideo)
 {
     global $db_host, $db_user, $db_pass, $database;
     $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
-    $stateQuery =$DBManager->renewVideoInDDBB($newVideo, $oldVideo);
+    $stateQuery = $DBManager->renewVideoInDDBB($newVideo, $oldVideo);
 }
 
 //Abs 2
-function addPanelWithStatus ($stateQuery){
+function addPanelWithStatus($stateQuery)
+{
     if ($stateQuery == "success") {
         header("Location:index.php");
     } else {
         return addPanelWithMessage($stateQuery);
     }
 }
-
-
 
 
 ?>

@@ -5,7 +5,7 @@
  * Date: 28/08/2018
  * Time: 09:55
  */
-
+//Data Transfer Object
 Class video
 {
     private $id;
