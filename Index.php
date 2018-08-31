@@ -16,9 +16,12 @@ try {
         if (!empty($_GET['idPlaylist'])) {
             updatePlaylist($youtubeManager);
         }
+        //Show option Inspect public Playlist
+        $htmlListItems .= addPublicListItem();
+
         //List User Playlists
         $response = $youtubeManager->getPlaylistsAPI();
-        $htmlListItems = parseRsShowPlayLists($response);
+        $htmlListItems .= parseRsShowPlayLists($response);
 
 
         $_SESSION['token'] = $youtubeManager->getAccessToken();
@@ -54,6 +57,46 @@ function updatePlaylist($youtubeManager)
 
     $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
     $DBManager->renewPlaylistDDBB($_GET['idPlaylist'], $youtubeVideos);
+}
+
+function addPublicListItem()
+{
+    return sprintf('
+        <li>
+        <button onclick="document.getElementById(\'id01\').style.display=\'block\'"class="w3-red w3-btn"><b style="text-shadow:2px 2px 0 #444" class="w3-wide">Analyze by playlist ID</b></button>                   
+        </li>
+        
+    <div id="id01" class="w3-modal">        
+        <div class="w3-modal-content">
+          <header class="w3-container w3-red"> 
+            <span onclick="document.getElementById(\'id01\').style.display=\'none\'" 
+            class="w3-button w3-display-topright">&times;</span>
+            <h2 style="text-shadow:2px 2px 0 #444"><b>Insert a playlist ID</b></h2>
+          </header>                    
+            <p>                
+            <div class="w3-container">                   
+                <form class="w3-container" action="getBlockedVideos.php">             
+                    <input class="w3-input w3-border " name="idPlist" placeholder="Playlist ID" type="text"></div>                            
+                    <button class="w3-btn w3-Dark-Gray w3-hover-red w3-block w3-border w3-large">Analyze</button>                       
+                </form>                
+            </div>            
+            </p>                                             
+    </div>
+        ');
+
+    return $buffer;
+
+}
+
+//Abs 2
+function addPanelInspectPublicPlaylist()
+{
+    $htmlItem = "";
+
+    $htmlItem = sprintf("
+
+");
+    return $htmlItem;
 }
 
 //Abs 3
