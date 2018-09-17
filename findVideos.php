@@ -60,11 +60,15 @@ function parseRsAddListVideos($RS)
     foreach ($RS['items'] as $videoDetails) {
         $videoDuration = convertYoutubeDurationTime($videoDetails['contentDetails']['duration']);
         $htmlListItems .= sprintf('
-        <li class=w3> <span class="w3-tag w3-blue">%s</span> 
-            <a class=w3-btn href="insertVideo.php?vdId=%s&idPlist=%s&oldId=%s&LongIdVideo=%s" >%s</a>
+        
+        <li class="w3-left-align">        
+         <span class="w3-tag w3-blue">%s</span> 
+            <a class=w3-btn href="insertVideo.php?vdId=%s&idPlist=%s&oldId=%s&LongIdVideo=%s" >
+            <img height="35" width="35" class="w3-bar-item" src="https://img.youtube.com/vi/%s/1.jpg">
+            %s</a>
         </li>',
             $videoDuration, $videoDetails['id'], $_GET['playlistId'],
-            $_GET['oldId'], $_GET['LongIdVideo'], $videoDetails['snippet']['title']);
+            $_GET['oldId'], $_GET['LongIdVideo'],$videoDetails['id'], $videoDetails['snippet']['title']);
     }
     return $htmlListItems;
 }

@@ -97,7 +97,7 @@ class youtubeManager
 
     function getVideosByIdAPI($videoIds)
     {
-        return $this->youtube->videos->listVideos('snippet,contentDetails', array(
+        return $this->youtube->videos->listVideos('snippet,contentDetails,statistics', array(
             'id' => $videoIds));
     }
 

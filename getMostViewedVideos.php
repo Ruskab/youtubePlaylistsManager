@@ -2,9 +2,13 @@
 include_once "vendor/autoload.php";
 include("functions.php");
 include("mysql_ddbb/databaseManager.php");
+include("youtube/video.php");
 
-$tubeVideoRS[] = array();
-$idsVideosPlaylists[] = array();
+
+$idVideosViews = array();
+$idsVideosPlaylists = array();
+$detailVideos = array();
+
 
 session_start();
 $youtubeManager = initYoutubeService($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
@@ -14,14 +18,14 @@ if ($youtubeManager->hasAccessToken()) {
         if (!empty($_GET['idPlist'])) {
             do {
                 $response = $youtubeManager->getPlaylistItemsAPI($nextPageToken, $_GET['idPlist']);
-                $idsVideosPlaylists += getListLongVideoIds($response);
-                $htmlListItems .= getVideoDetailsAndFilterBlockedVideos($youtubeManager, $response);
-                $tubeVideoRS += parseRsGetAllVideosDic($response);
-
+                getVideosAndViews($youtubeManager, $response, $detailVideos, $idVideosViews);
                 $nextPageToken = $response['nextPageToken'];
             } while ($nextPageToken <> '');
 
-            if (empty($htmlListItems)){
+            if (!empty($idVideosViews)) {
+                arsort($idVideosViews);
+               $htmlListItems = addTopVideos(array_slice($idVideosViews,0, 10), $detailVideos);
+            } else {
                 $htmlListItems = addPanelWithMessage("No hay videos");
             }
         }
@@ -30,7 +34,7 @@ if ($youtubeManager->hasAccessToken()) {
         $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     } catch (Google_Exception $e) {
         $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
-    } catch (Exception $e){
+    } catch (Exception $e) {
         $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     }
 
@@ -43,10 +47,9 @@ if ($youtubeManager->hasAccessToken()) {
 include("includes/bodyPage.php");
 
 //Abs 2
-function getVideoDetailsAndFilterBlockedVideos($youtubeManager, $response)
+function getVideosAndViews($youtubeManager, $response, &$videosDetails, &$idVideosViews)
 {
 //diccionario de videos id -> title
-    $idsVideosPlaylists = array();
     $hmtlElements = "";
     $totalVideos = count($response['items']);
     $videosAnalized = 0;
@@ -61,36 +64,58 @@ function getVideoDetailsAndFilterBlockedVideos($youtubeManager, $response)
             if ($numIdInRequest == 49 || $totalVideos === ++$videosAnalized) {
                 $requestIDs = rtrim($requestIDs, ", ");
                 $response = $youtubeManager->getVideosByIdAPI($requestIDs);
-
+                addVideosInDic($response, $idVideosViews);
+                AddVideosDetailVideos($response, $videosDetails);
                 $numIdInRequest = 0;
-                $hmtlElements .= parseRsAddBlockedVideos($response, $idsVideosPlaylists);
             }
         }
         $numIdInRequest++;
     }
-    return $hmtlElements;
 }
-//Abs 3
-function parseRsAddBlockedVideos($listResponse, $idsVideosPlaylists)
-{
-    $htmlListItems = "";
 
+//Abs 3
+function addVideosInDic($listResponse, &$idVideosViews)
+{
     foreach ($listResponse['items'] as $tRS) {
-        if (!empty($tRS['contentDetails']['regionRestriction']['blocked'])) {
-            if (in_array('ES', $tRS['contentDetails']['regionRestriction']['blocked'], false)) {
-                $htmlListItems .= sprintf('
-                    <li class=w3-left-align>
-                        <a class=w3-btn href="https://www.youtube.com/watch?v=%s" >
-                           <span class="w3-tag w3-green">Blocked</span> <img height="35" width="35" src="https://img.youtube.com/vi/%s/1.jpg"> %s
-                        </a>
-                    </li> ',
-                    $tRS['id'],$tRS['id'], $tRS['snippet']['title']);
-            }
+        if (!empty($tRS['statistics']['viewCount'])) {
+            $idVideosViews[$tRS['id']] = $tRS['statistics']['viewCount'];
         }
     }
+}
 
+function AddVideosDetailVideos($listResponse, &$detailVideos)
+{
+    foreach ($listResponse['items'] as $tRS) {
+        $video = new video($tRS['id']);
+        $video->setTitle($tRS['snippet']['title']);
+        $detailVideos[$tRS['id']] = $video;
+    }
+
+
+}
+
+function addTopVideos($ids, $details)
+{
+    $htmlListItems = "";
+    $count = 1;
+    foreach ($ids as $id => $views) {
+        $title = $details[$id]->getTitle();
+        $htmlListItems .= sprintf('
+                    <li class=w3-left-align>
+                        <a class=w3-btn href="https://www.youtube.com/watch?v=%s" >
+                           <span class="w3-tag w3-blue">%s</span>
+                            <span class="w3-tag w3-green">%s</span>
+                            %s
+                        </a>
+         
+                    </li> ',
+            $id, $count,$views,$title);
+
+        $count++;
+    }
     return $htmlListItems;
 }
+
 //Abs 2
 function getListLongVideoIds($response)
 {
@@ -100,6 +125,7 @@ function getListLongVideoIds($response)
     return $idsVideosPlaylists;
 
 }
+
 //Abs 2
 function parseRsGetAllVideosDic($response)
 {

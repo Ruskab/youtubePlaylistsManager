@@ -13,6 +13,7 @@ Class video
     private $duration;
     private $playlist;
     public $idVideo_Playlist;
+    public $views;
 
     public function __construct($id)
     {
