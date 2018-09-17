@@ -24,7 +24,7 @@ if ($youtubeManager->hasAccessToken()) {
 
             if (!empty($idVideosViews)) {
                 arsort($idVideosViews);
-               $htmlListItems = addTopVideos(array_slice($idVideosViews,0, 10), $detailVideos);
+               $htmlListItems = addTopVideos(array_slice($idVideosViews,0, $_GET['gender']), $detailVideos);
             } else {
                 $htmlListItems = addPanelWithMessage("No hay videos");
             }

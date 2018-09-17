@@ -18,6 +18,8 @@ try {
         }
         //Show option Inspect public Playlist
         $htmlListItems .= addPublicListItem();
+        $htmlListItems .= addTopVideosListItem();
+
 
         //List User Playlists
         $response = $youtubeManager->getPlaylistsAPI();
@@ -65,9 +67,6 @@ function addPublicListItem()
         <li>
         <button onclick="document.getElementById(\'id01\').style.display=\'block\'"class="w3-red w3-btn"><b style="text-shadow:2px 2px 0 #444" class="w3-wide">Analyze by playlist ID</b></button>                   
         </li>
-        <li>
-        <button onclick="document.getElementById(\'id02\').style.display=\'block\'"class="w3-red w3-btn"><b style="text-shadow:2px 2px 0 #444" class="w3-wide">GET TOP SONGS</b></button>                   
-        </li>
         
     <div id="id01" class="w3-modal">        
         <div class="w3-modal-content">
@@ -87,21 +86,44 @@ function addPublicListItem()
             
             
     </div>
-        <div id="id02" class="w3-modal">        
+        ');
+
+    return $buffer;
+
+}
+
+function addTopVideosListItem()
+{
+    return sprintf('
+        <li>
+           <button onclick="document.getElementById(\'id02\').style.display=\'block\'"class="w3-red w3-btn"><b style="text-shadow:2px 2px 0 #444" class="w3-wide">GET TOP SONGS</b></button>                            
+        </li>
+        
+        
+        
+ 
+    <div id="id02" class="w3-modal">        
         <div class="w3-modal-content">
           <header class="w3-container w3-red"> 
             <span onclick="document.getElementById(\'id02\').style.display=\'none\'" 
             class="w3-button w3-display-topright">&times;</span>
             <h2 style="text-shadow:2px 2px 0 #444"><b>Insert a playlist ID</b></h2>
           </header>                    
-            <p>                
-            <div class="w3-container">                   
-                <form class="w3-container" action="getMostViewedVideos.php">             
-                    <input class="w3-input w3-border " name="idPlist" placeholder="Playlist ID" type="text"></div>                            
-                    <button class="w3-btn w3-Dark-Gray w3-hover-red w3-block w3-border w3-large">Analyze</button>                       
+            <div class="w3-container w3-padding-16 ">                   
+                <form class="w3-container" action="getMostViewedVideos.php">                         
+                    <input class="w3-input w3-border " name="idPlist" placeholder="Playlist ID" type="text">
+                    
+                    <input class="w3-radio" type="radio" name="gender" value="10" checked>
+                    <label>TOP 10</label>
+                    <input class="w3-radio" type="radio" name="gender" value="25">
+                    <label>TOP 25</label>
+                    <input class="w3-radio" type="radio" name="gender" value="50">
+                    <label>TOP 50</label>
+                    
+                    <button class="w3-btn w3-Dark-Gray w3-hover-red w3-block w3-border w3-large w3-margin-top">Analyze</button>                       
                 </form>                
-            </div>            
-            </p>
+            </div>           
+        </div>            
     </div>
         ');
 
