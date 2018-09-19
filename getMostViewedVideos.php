@@ -107,10 +107,8 @@ function addTopVideos($ids, $details)
                             <span class="w3-tag w3-green">%s</span>
                             %s
                         </a>
-         
-                    </li> ',
+                     </li> ',
             $id, $count,$views,$title);
-
         $count++;
     }
     return $htmlListItems;

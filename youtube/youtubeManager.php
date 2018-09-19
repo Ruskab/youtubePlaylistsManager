@@ -1,7 +1,6 @@
 <?php
 
-include_once "vendor/autoload.php";
-include("includes/constants.php");
+include("youtube_params.php");
 
 class youtubeManager
 {

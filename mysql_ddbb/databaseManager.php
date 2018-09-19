@@ -6,7 +6,7 @@
  * Time: 10:19
  */
 
-include("includes/constants.php");
+include("database_params.php");
 
 class databaseManager
 {
