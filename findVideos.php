@@ -1,18 +1,46 @@
 <?php
-include_once "vendor/autoload.php";
-include("functions.php");
+
+include dirname(__FILE__)."/functions.php";
+include dirname(__FILE__) . "/youtube/Video.php";
+include dirname(__FILE__)."/youtube/YoutubeServiceAPI.php";
+include dirname(__FILE__)."/youtube/playlistDAOImp.php";
+include dirname(__FILE__)."/mysql_ddbb/VideoDAOImp.php";
+
 
 $idVideos = '';
+$htmlListItems = '';
+$nextPageToken = '';
+$htmlBody = '';
+$logOutUri = sprintf('
+  <form id="logout" method="POST" action="%s">
+    <input type="hidden" name="logout" value="" />
+    <input class="w3-btn" type="submit" value="Logout">
+  </form>
+', htmlspecialchars($_SERVER['PHP_SELF']));
 
 session_start();
-$youtubeManager = initYoutubeService($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
-if ($youtubeManager->hasAccessToken()) {
+
+if (isset($_REQUEST['logout'])) {
+    unset($_SESSION['upload_token']);
+}
+
+$playlistDao = new playlistDAOImp();
+
+$authUri = $playlistDao->getAuthUri();
+
+if (!empty($authUri)){
+    $htmlBody= addAuthorizationPanelAlert($authUri);
+}
+
+
+
+if ($playlistDao->userHasAccess()){
     try {
         if (!empty($_GET['vdTitle']) && !empty($_GET['playlistId'])) {
-            $response = $youtubeManager->getVideosByTitleAPI($_GET['vdTitle']);
+            $response = $playlistDao->getVideosByTitle($_GET['vdTitle']);
             $idVideos = parseRsGetAlterVideosIds($response);
             if (!empty($idVideos)) {
-                $videoDetailRS = $youtubeManager->getVideosByIdAPI($idVideos);
+                $videoDetailRS = $playlistDao->getVideosByIDs($idVideos);
                 $htmlListItems = parseRsAddListVideos($videoDetailRS);
             }
         }
@@ -24,11 +52,6 @@ if ($youtubeManager->hasAccessToken()) {
     } catch (Exception $e){
         $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     }
-
-    $_SESSION['token'] = $youtubeManager->getAccessToken();
-} else {
-    $urlAuth = generateAuthUrlSetState($youtubeManager->client);
-    $htmlBody = addAuthorizationPanelAlert($urlAuth);
 }
 
 //Estructura de la pagina principal
@@ -57,7 +80,7 @@ function parseRsAddListVideos($RS)
     $htmlListItems = "";
     $videoDuration = "";
 
-    foreach ($RS['items'] as $videoDetails) {
+    foreach ($RS as $videoDetails) {
         $videoDuration = convertYoutubeDurationTime($videoDetails['contentDetails']['duration']);
         $htmlListItems .= sprintf('
         

@@ -1,36 +1,61 @@
 <?php
-include_once "vendor/autoload.php";
-include("functions.php");
-include("mysql_ddbb/databaseManager.php");
+
+include dirname(__FILE__)."/functions.php";
+include dirname(__FILE__) . "/youtube/Video.php";
+include dirname(__FILE__)."/youtube/YoutubeServiceAPI.php";
+include dirname(__FILE__)."/youtube/playlistDAOImp.php";
+include dirname(__FILE__)."/mysql_ddbb/VideoDAOImp.php";
+
 
 $tubeVideoRS[] = array();
 $ddbbVideoRS[] = array();
 $idsVideosPlaylists[] = array();
 $MSG_PRIVATE_VIDEO = "Private video";
 $MSG_DELETED_VIDEO = "Deleted video";
+$htmlListItems = '';
+$nextPageToken = '';
+$htmlBody = '';
+$logOutUri = sprintf('
+  <form id="logout" method="POST" action="%s">
+    <input type="hidden" name="logout" value="" />
+    <input class="w3-btn" type="submit" value="Logout">
+  </form>
+', htmlspecialchars($_SERVER['PHP_SELF']));
 
 session_start();
-$youtubeManager = initYoutubeService($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
-
-if ($youtubeManager->hasAccessToken()) {
+//$youtubeManager = initYoutubeService($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
     try {
-        if (!empty($_GET['idPlist'])) {
-            do {
-                $response = $youtubeManager->getPlaylistItemsAPI($nextPageToken, $_GET['idPlist']);
-                $idsVideosPlaylists += getListLongVideoIds($response);
-                $htmlListItems .= getVideoDetailsAndFilterBlockedVideos($youtubeManager, $response);
-                $tubeVideoRS += parseRsGetAllVideosDic($response);
+      // todo Revisar lo de csrf token
+if (isset($_REQUEST['logout'])) {
+    unset($_SESSION['upload_token']);
+}
 
-                $nextPageToken = $response['nextPageToken'];
-            } while ($nextPageToken <> '');
+$playlistDao = new playlistDAOImp();
 
-          //  $ddbbVideoRS = getVideosByPlaylistIdFromDB($_GET['idPlist']);
-          //  $htmlListItems .= analyzeAndAddDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlaylists);
+$authUri = $playlistDao->getAuthUri();
 
-            if (empty($htmlListItems)){
-                $htmlListItems = addPanelWithMessage("No hay videos");
-            }
+if (!empty($authUri)){
+    $htmlBody= addAuthorizationPanelAlert($authUri);
+}
+
+if ($playlistDao->userHasAccess()){
+    if (!empty($_GET['idPlist'])) {
+        $response = $playlistDao->getPlaylistVideos($_GET['idPlist']);
+        $idsVideosPlaylists = getListLongVideoIds($response);
+        $htmlListItems .= getBlockedVideosListHTML($playlistDao, $response);
+        $tubeVideoRS += parseRsGetAllVideosDic($response);
+
+        $videoDAOImp = new VideoDAOImp();
+        $ddbbVideoRS = $videoDAOImp->GetVideosByPlaylistId($_GET['idPlist']);
+        $htmlListItems .= analyzeAndAddDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlaylists);
+
+        if (empty($htmlListItems)){
+            $htmlListItems = addPanelWithMessage("No hay videos");
         }
+    }
+
+}
+
 
     } catch (Google_Service_Exception $e) {
         $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
@@ -40,43 +65,39 @@ if ($youtubeManager->hasAccessToken()) {
         $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
     }
 
-    $_SESSION['token'] = $youtubeManager->getAccessToken();
-} else {
-    $urlAuth = generateAuthUrlSetState($youtubeManager->client);
-    $htmlBody = addAuthorizationPanelAlert($urlAuth);
-}
+
 //Estructura de la pagina principal
 include("includes/bodyPage.php");
 
 //Abs 2
-function getVideoDetailsAndFilterBlockedVideos($youtubeManager, $response)
+function getBlockedVideosListHTML($playlistDao, $response)
 {
 //diccionario de videos id -> title
     $idsVideosPlaylists = array();
     $hmtlElements = "";
-    $totalVideos = count($response['items']);
+    $totalVideos = count($response);
     $videosAnalized = 0;
     $numIdInRequest = 0;
     $requestIDs = "";
 
-    foreach ($response['items'] as $itemRS) {
+    foreach ($response as $itemRS) {
+
         $idsVideosPlaylists[$itemRS['snippet']['resourceId']['videoId']] = $itemRS['id'];
         //Get the bloqued videos
         if ($numIdInRequest <= 49) {
             $requestIDs .= $itemRS['snippet']['resourceId']['videoId'] . ",";
             if ($numIdInRequest == 49 || $totalVideos === ++$videosAnalized) {
                 $requestIDs = rtrim($requestIDs, ", ");
-                $response = $youtubeManager->getVideosByIdAPI($requestIDs);
-
-                $numIdInRequest = 0;
+                $response = $playlistDao->getVideosByIDs($requestIDs);
+                $requestIDs = "";
                 $hmtlElements .= parseRsAddBlockedVideos($response, $idsVideosPlaylists);
+                $numIdInRequest = 0;
             }
         }
         $numIdInRequest++;
     }
     return $hmtlElements;
 }
-
 //Abs 3
 function parseRsAddBlockedVideos($listResponse, $idsVideosPlaylists)
 {
@@ -98,37 +119,25 @@ function parseRsAddBlockedVideos($listResponse, $idsVideosPlaylists)
 
     return $htmlListItems;
 }
-
 //Abs 2
 function getListLongVideoIds($response)
 {
-    foreach ($response['items'] as $itemRS) {
+    foreach ($response as $itemRS) {
         $idsVideosPlaylists[$itemRS['snippet']['resourceId']['videoId']] = $itemRS['id'];
     }
     return $idsVideosPlaylists;
 
 }
-
 //Abs 2
 function parseRsGetAllVideosDic($response)
 {
     $dictionary = [];
 
-    foreach ($response['items'] as $itemRS) {
+    foreach ($response as $itemRS) {
         $dictionary[$itemRS['snippet']['resourceId']['videoId']] = $itemRS['snippet']['title'];
     }
     return $dictionary;
 }
-
-//Abs 2
-function getVideosByPlaylistIdFromDB($playlistId)
-{
-    global $db_host, $db_user, $db_pass, $database;
-    $query = "SELECT * FROM videos WHERE idPlaylist = '" . $playlistId . "'";
-    $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
-    return $DBManager->select_data($query);
-}
-
 //Abs 2
 function analyzeAndAddDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlaylists)
 {
@@ -137,26 +146,26 @@ function analyzeAndAddDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlayli
 
     //Procesamos las 2 listas, reccorremos la de la ddbb y comparamos con la de youtube
     foreach ($ddbbVideoRS as $dbVideo) {
-        if (array_key_exists($dbVideo['id_video'], $tubeVideoRS)) {
-            if ($tubeVideoRS[$dbVideo['id_video']] == $STR_DELETED_VIDEO) {
+        if (array_key_exists($dbVideo->getId(), $tubeVideoRS)) {
+            if ($tubeVideoRS[$dbVideo->getId()] == $STR_DELETED_VIDEO) {
                 $htmlListItems .= sprintf('
                     <li class=w3>
                         <a class=w3-btn href="findVideos.php?vdTitle=%s&playlistId=%s&oldId=%s&LongIdVideo=%s" >
                            <span class="w3-tag w3-red"> Deleted</span> %s
                         </a>
                     </li> ',
-                    urlencode($dbVideo['titulo']), $_GET['idPlist'], $dbVideo['id_video'],
-                    $idsVideosPlaylists[$dbVideo['id_video']], $dbVideo['titulo']);
+                    urlencode($dbVideo->getTitle()), $_GET['idPlist'], $dbVideo->getId(),
+                    $idsVideosPlaylists[$dbVideo->getId()], $dbVideo->getTitle());
 
-            } elseif ($tubeVideoRS[$dbVideo['id_video']] == $STR_PRIVATE_VIDEO) {
+            } elseif ($tubeVideoRS[$dbVideo->getId()] == $STR_PRIVATE_VIDEO) {
                 $htmlListItems .= sprintf('
                     <li class=w3>
                         <a class=w3-btn href="findVideos.php?vdTitle=%s&playlistId=%s&oldId=%s&LongIdVideo=%s" >
                            <span class="w3-tag w3-red"> Private</span> %s
                         </a>
                     </li> ',
-                    urlencode($dbVideo['titulo']), $_GET['idPlist'], $dbVideo['id_video'],
-                    $idsVideosPlaylists[$dbVideo['id_video']], $dbVideo['titulo']);
+                    urlencode($dbVideo->getTitle()), $_GET['idPlist'], $dbVideo->getId(),
+                    $idsVideosPlaylists[$dbVideo->getId()], $dbVideo->getTitle());
             }
         } else {
             //Si el usuario elimina el video de la playlist
@@ -166,14 +175,12 @@ function analyzeAndAddDeletedVideos($ddbbVideoRS, $tubeVideoRS, $idsVideosPlayli
                     <span class="w3-tag w3-green">Quitado</span> %s
                 </a> 
             </li> ',
-                urlencode($dbVideo['titulo']), $_GET['idPlist'], $dbVideo['id_video'],
-                $idsVideosPlaylists[$dbVideo['id_video']], $dbVideo['titulo']);
+                urlencode($dbVideo->getTitle()), $_GET['idPlist'], $dbVideo->getId(),$dbVideo->getPlaylist(), $dbVideo->getTitle());
         }
     }
 
     return $htmlListItems;
 }
-
 
 ?>
 

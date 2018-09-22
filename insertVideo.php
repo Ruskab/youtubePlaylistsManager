@@ -1,26 +1,49 @@
 <?php
-include_once "vendor/autoload.php";
-include("functions.php");
-include("youtube/video.php");
-include("mysql_ddbb/databaseManager.php");
+include dirname(__FILE__)."/functions.php";
+include dirname(__FILE__) . "/youtube/Video.php";
+include dirname(__FILE__)."/youtube/YoutubeServiceAPI.php";
+include dirname(__FILE__)."/youtube/playlistDAOImp.php";
+include dirname(__FILE__)."/mysql_ddbb/VideoDAOImp.php";
 
 $htmlBody = "";
 $htmlListItems = "";
-
+$logOutUri = sprintf('
+  <form id="logout" method="POST" action="%s">
+    <input type="hidden" name="logout" value="" />
+    <input class="w3-btn" type="submit" value="Logout">
+  </form>
+',htmlspecialchars($_SERVER['PHP_SELF']));
 session_start();
 
-if (!empty($_GET['vdId']) && !empty($_GET['idPlist']) && !empty($_GET['LongIdVideo'])) {
-    $youtubeManager = initYoutubeService($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
 
-    if ($youtubeManager->hasAccessToken()) {
+if (!empty($_GET['vdId']) && !empty($_GET['idPlist']) && !empty($_GET['LongIdVideo'])) {
+
+    if (isset($_REQUEST['logout'])) {
+        unset($_SESSION['upload_token']);
+    }
+
+    $playlistDao = new playlistDAOImp();
+
+    $authUri = $playlistDao->getAuthUri();
+
+    if (!empty($authUri)) {
+        $htmlBody = addAuthorizationPanelAlert($authUri);
+    }
+
+    if ($playlistDao->userHasAccess()) {
         try {
             $newVideo = new video($_GET['vdId']);
-            $newVideo->addVideoInfoFromGET(); //2
+            addVideoInfoFromGET($newVideo);
 
             $oldVideo = new video($_GET['oldId']);
             $oldVideo->setIdVideoPlaylist($_GET['LongIdVideo']);
 
-            $newVideo->setTitle(addNewVideoInPlaylistGetTitle($newVideo, $oldVideo, $youtubeManager));  //2
+
+            //$playlistDao->deleteVideoInPlaylist($oldVideo->getIdVideoPlaylist());
+            $response = $playlistDao->setVideoInPlaylistAPI($newVideo);
+
+            $newVideo->setTitle($response['snippet']['title']);
+
             $status_query = addNewVideoInDatabase($newVideo, $oldVideo); //2
             $htmlBody = addPanelWithStatus($status_query);
 
@@ -31,11 +54,6 @@ if (!empty($_GET['vdId']) && !empty($_GET['idPlist']) && !empty($_GET['LongIdVid
         } catch (Exception $e) {
             $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
         }
-
-        $_SESSION['token'] = $youtubeManager->getAccessToken();
-    } else {
-        $urlAuth = generateAuthUrlSetState($youtubeManager->client);
-        $htmlBody = addAuthorizationPanelAlert($urlAuth);
     }
 }
 //Estructura de la pagina principal
@@ -44,17 +62,20 @@ include("includes/bodyPage.php");
 //Abs 2
 function addNewVideoInPlaylistGetTitle(video $video, video $oldvideo, youtubeManager $youtubeManager)
 {
-    $playlistItemResponse = $youtubeManager->setVideoInPlaylistAPI($video);
+    $response = $youtubeManager->setVideoInPlaylistAPI($video);
     $DeleteVideoResponse = $youtubeManager->deleteVideoInPlaylistAPI($oldvideo->getIdVideoPlaylist());
-    return $playlistItemResponse['snippet']['title'];
+    return $response['snippet']['title'];
 }
 
 //Abs 2
 function addNewVideoInDatabase(video $newVideo, video $oldVideo)
 {
-    global $db_host, $db_user, $db_pass, $database;
-    $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
-    $stateQuery = $DBManager->renewVideoInDDBB($newVideo, $oldVideo);
+    $videosDAO = new VideoDAOImp();
+    $videosDAO->deleteVideo($oldVideo->getId());
+
+    $msg_state = "";
+    $msg_state = $videosDAO->insertVideo($newVideo);
+    return $msg_state;
 }
 
 //Abs 2
@@ -67,5 +88,15 @@ function addPanelWithStatus($stateQuery)
     }
 }
 
+//abs 2
+function addVideoInfoFromGET(Video &$video)
+{
+    if (!empty($_GET)) {
+        if (!empty($_GET['title'])) $video->setTitle($_GET['title']);
+        if (!empty($_GET['idPlist'])) $video->setPlaylist($_GET['idPlist']);
+        if (!empty($_GET['idVideoPlist'])) $video->setIdVideoPlaylist($_GET['idVideoPlist']);
+        if (!empty($_GET['duration'])) $video->setDuration($_GET['duration']);
+    }
+}
 
 ?>

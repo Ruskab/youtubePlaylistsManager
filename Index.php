@@ -1,40 +1,67 @@
 <?php
-include_once "vendor/autoload.php";
-include("functions.php");
-include("youtube/video.php");
-include("mysql_ddbb/databaseManager.php");
+
+include dirname(__FILE__)."/functions.php";
+include dirname(__FILE__) . "/youtube/Video.php";
+include dirname(__FILE__)."/youtube/YoutubeServiceAPI.php";
+include dirname(__FILE__)."/youtube/playlistDAOImp.php";
+include dirname(__FILE__)."/mysql_ddbb/VideoDAOImp.php";
+
 
 
 //$youtubeManager->client->setAccessType('offline');
 //$youtubeManager->client->setApprovalPrompt('force');
 session_start();
+
+$htmlListItems = '';
+$nextPageToken = '';
+$htmlBody = '';
+$logOutUri = sprintf('
+  <form id="logout" method="POST" action="%s">
+    <input type="hidden" name="logout" value="" />
+    <input class="w3-btn" type="submit" value="Logout">
+  </form>
+',htmlspecialchars($_SERVER['PHP_SELF']));
+
 try {
-    $youtubeManager = initYoutubeService($OAUTH2_CLIENT_ID, $OAUTH2_CLIENT_SECRET);
 
-// Si el usuario esta autorizado
-    if ($youtubeManager->hasAccessToken()) {
-        if (!empty($_GET['idPlaylist'])) {
-            updatePlaylist($youtubeManager);
+    // todo Revisar lo de csrf token
+    if (isset($_REQUEST['logout'])) {
+        unset($_SESSION['upload_token']);
+    }
+
+    //Data access object
+    $playlistDao = new playlistDAOImp();
+
+    $authUri = $playlistDao->getAuthUri();
+
+    if (!empty($authUri)){
+       $htmlBody= addAuthorizationPanelAlert($authUri);
+    }
+
+    $htmlListItems .= addPublicListItem();
+    $htmlListItems .= addTopVideosListItem();
+
+    //List User Playlists
+    if ($playlistDao->userHasAccess())
+    {
+        $response = $playlistDao->getAuthorizedUserPlaylists();
+        if (!empty($response)){
+            $htmlListItems .= parseRsShowPlayLists($response);
         }
-        //Show option Inspect public Playlist
-        $htmlListItems .= addPublicListItem();
-        $htmlListItems .= addTopVideosListItem();
 
+        // Si el usuario esta autorizado
+        if (!empty($_GET['idPlaylist'])) {
+            //updatePlaylist($service);
+            $response = $playlistDao->getPlaylistVideos($_GET['idPlaylist']);
+            $youtubeVideos = parseRsGetVideosDic($response);
 
-        //List User Playlists
-        $response = $youtubeManager->getPlaylistsAPI();
-        $htmlListItems .= parseRsShowPlayLists($response);
-
-
-        $_SESSION['token'] = $youtubeManager->getAccessToken();
-
-    } else {
-        $urlAuth = generateAuthUrlSetState($youtubeManager->client);
-        $htmlBody = addAuthorizationPanelAlert($urlAuth);
+            $videosDAO = new VideoDAOImp();
+            $videosDAO->renewPlaylistVideos($_GET['idPlaylist'],$youtubeVideos);
+        }
     }
 
 } catch (Exception $e) {
-    addPanelWithErrorMessage($e->getMessage());
+    //addPanelWithErrorMessage($e->getMessage());
 } catch (Google_Service_Exception $e) {
     $htmlBody .= addPanelWithMessage(htmlspecialchars($e->getMessage()));
 } catch (Google_Exception $e) {
@@ -43,23 +70,6 @@ try {
 //Estructura de la pagina principal
 include("includes/bodyPage.php");
 
-
-//Abs2
-function updatePlaylist($youtubeManager)
-{
-    global $db_host, $db_user, $db_pass, $database;
-    $youtubeVideos = array();
-    $nextPageToken = "";
-
-    do {
-        $response = $youtubeManager->getPlaylistItemsAPI($nextPageToken, $_GET['idPlaylist']);
-        $youtubeVideos += parseRsGetVideosDic($response);
-        $nextPageToken = $response['nextPageToken'];
-    } while ($nextPageToken <> '');
-
-    $DBManager = new databaseManager($db_host, $db_user, $db_pass, $database);
-    $DBManager->renewPlaylistDDBB($_GET['idPlaylist'], $youtubeVideos);
-}
 
 function addPublicListItem()
 {
@@ -131,28 +141,16 @@ function addTopVideosListItem()
 
 }
 
-//Abs 2
-function addPanelInspectPublicPlaylist()
-{
-    $htmlItem = "";
-
-    $htmlItem = sprintf("
-
-");
-    return $htmlItem;
-}
-
 //Abs 3
 function parseRsGetVideosDic($response)
 {
-    $dictionary = [];
+        $dictionary = [];
 
-    foreach ($response['items'] as $itemRS) {
+    foreach ($response as $itemRS) {
         $dictionary[$itemRS['snippet']['resourceId']['videoId']] = $itemRS['snippet']['title'];
     }
     return $dictionary;
 }
-
 //Abs 2
 function parseRsShowPlayLists($response)
 {

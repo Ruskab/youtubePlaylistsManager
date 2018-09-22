@@ -1,12 +1,12 @@
 <?php
 /**
  * Created by PhpStorm.
- * User: ilyak
- * Date: 28/08/2018
- * Time: 09:55
+ * User: Usuario
+ * Date: 22/09/2018
+ * Time: 16:28
  */
-//Data Transfer Object
-Class video
+
+class Video
 {
     private $id;
     private $title;
@@ -70,15 +70,4 @@ Class video
         return $this->idVideo_Playlist= $value;
     }
 
-
-    //abs 2
-    public function addVideoInfoFromGET()
-    {
-        if (!empty($_GET)) {
-            if (!empty($_GET['title'])) $this->setTitle($_GET['title']);
-            if (!empty($_GET['idPlist'])) $this->setPlaylist($_GET['idPlist']);
-            if (!empty($_GET['idVideoPlist'])) $this->setIdVideoPlaylist($_GET['idVideoPlist']);
-            if (!empty($_GET['duration'])) $this->setDuration($_GET['duration']);
-        }
-    }
 }
